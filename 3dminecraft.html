@@ -65,7 +65,7 @@
 		#movePad { position: absolute; left: max(18px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); width: clamp(104px, 12vw, 132px); height: clamp(104px, 12vw, 132px); display: block; pointer-events: none; }
 		#moveStickBase { position:absolute; inset:0; border:2px solid rgba(255,255,255,.68); border-radius:50%; background:rgba(20,20,20,.24); pointer-events:auto; touch-action:none; }
 		#moveStickKnob { position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; border:2px solid rgba(255,255,255,.9); border-radius:50%; background:rgba(255,255,255,.42); pointer-events:none; }
-		#actionPad { right: max(18px, env(safe-area-inset-right)); grid-template-columns: 76px; grid-template-rows: repeat(2, 64px); }
+		#actionPad { right: max(18px, env(safe-area-inset-right)); grid-template-columns: 76px; grid-template-rows: repeat(3, 60px); }
 		.touchBtn { border: 1px solid rgba(255,255,255,.8); border-radius: 14px; color: white; background: rgba(20,20,20,.55); font-size: 15px; font-weight: 700; min-width: 64px; min-height: 60px; }
 		.touchBtn:active, .touchBtn.active { background: rgba(255,255,255,.4); }
 		#lookHint { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,.55); padding: 7px 10px; border-radius: 8px; font: 12px Arial,sans-serif; white-space: nowrap; pointer-events:none; }
@@ -213,13 +213,14 @@
 
 	<div id="runtimeErrorPanel" role="alert" aria-live="assertive"></div>
 	<div id="touchControls" aria-label="Touch controls">
-		<div id="lookHint">左スティック：移動 / 右側をドラッグ：視点 / タップ：破壊 / 長押し：設置</div>
+		<div id="lookHint">左スティック：移動 / 右側をドラッグ：視点 / タップ：設置 / 長押し：破壊</div>
 		<div id="movePad" aria-label="移動スティック">
 			<div id="moveStickBase"><div id="moveStickKnob"></div></div>
 		</div>
 		<div id="actionPad" class="touchCluster">
 			<button class="touchBtn" id="touchJump">ジャンプ</button>
 			<button class="touchBtn" id="touchSprint">ダッシュ</button>
+			<button class="touchBtn" id="touchSneak" aria-pressed="false">スニーク</button>
 		</div>
 	</div>
 
@@ -771,6 +772,7 @@
 			var keys = [];
 			var touchModeActive = false;
 			var touchSprintActive = false;
+			var sneaking = false;
 			var canJump = true;
 			var controlOptions = {
 				forward : "w",
@@ -993,6 +995,11 @@
 					}
 				}
 				keys = newArr;
+				if(e.key === "Shift") {
+					sneaking = false;
+					document.getElementById("touchSneak").classList.remove("active");
+					document.getElementById("touchSneak").setAttribute("aria-pressed", "false");
+				}
 				if(!keys.includes("w") && !touchSprintActive){
 					sprint = false;
 				}
@@ -1030,11 +1037,22 @@
 			moveStickBase.addEventListener("pointermove",function(e){ if(moveStickPointer===e.pointerId){ e.preventDefault(); updateMoveStick(e); } });
 			["pointerup","pointercancel","lostpointercapture"].forEach(function(name){ moveStickBase.addEventListener(name,function(e){ if(moveStickPointer===e.pointerId) resetMoveStick(); }); });
 			document.getElementById("touchJump").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); if(canJump){ ySpeed = -1; canJump = false; } });
-			document.getElementById("touchSprint").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); touchSprintActive = !touchSprintActive; sprint = touchSprintActive; this.classList.toggle("active", touchSprintActive); });
+			document.getElementById("touchSprint").addEventListener("pointerdown", function(e){
+				e.preventDefault(); e.stopPropagation();
+				if(sneaking){ sneaking = false; document.getElementById("touchSneak").classList.remove("active"); document.getElementById("touchSneak").setAttribute("aria-pressed", "false"); }
+				touchSprintActive = !touchSprintActive; sprint = touchSprintActive;
+				this.classList.toggle("active", touchSprintActive);
+			});
+			document.getElementById("touchSneak").addEventListener("pointerdown", function(e){
+				e.preventDefault(); e.stopPropagation();
+				sneaking = !sneaking;
+				if(sneaking){ sprint = false; touchSprintActive = false; document.getElementById("touchSprint").classList.remove("active"); }
+				this.classList.toggle("active", sneaking); this.setAttribute("aria-pressed", String(sneaking));
+			});
 			var lookPointer = null;
 			renderer.domElement.addEventListener("pointerdown", function(e){
 				if(!touchModeActive || e.target.closest("button") || e.target.closest(".hotbar")) return;
-				lookPointer = {x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,id:e.pointerId,moved:false,timer:window.setTimeout(function(){ if(lookPointer && lookPointer.id===e.pointerId && !lookPointer.moved){ lookPointer.longPressed=true; performTouchBlockAction("place",e.clientX,e.clientY); } },500)};
+				lookPointer = {x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,id:e.pointerId,moved:false,timer:window.setTimeout(function(){ if(lookPointer && lookPointer.id===e.pointerId && !lookPointer.moved){ lookPointer.longPressed=true; performTouchBlockAction("break",e.clientX,e.clientY); } },500)};
 			});
 			renderer.domElement.addEventListener("pointermove", function(e){
 				if(!touchModeActive || !lookPointer || lookPointer.id !== e.pointerId) return;
@@ -1048,7 +1066,7 @@
 			renderer.domElement.addEventListener("pointerup", function(e){
 				if(!lookPointer || lookPointer.id !== e.pointerId) return;
 				window.clearTimeout(lookPointer.timer);
-				if(!lookPointer.moved && !lookPointer.longPressed) performTouchBlockAction("break",e.clientX,e.clientY);
+				if(!lookPointer.moved && !lookPointer.longPressed) performTouchBlockAction("place",e.clientX,e.clientY);
 				lookPointer = null;
 			});
 			renderer.domElement.addEventListener("pointercancel", function(){ if(lookPointer) window.clearTimeout(lookPointer.timer); lookPointer = null; });
@@ -1265,20 +1283,28 @@
 				y : camera.position.y,
 				z : camera.position.z,
 				forward : function(speed){
+					var oldX = camera.position.x, oldZ = camera.position.z;
 					controls.moveForward(speed);
 					this.updatePosition();
+					if(sneaking && canJump && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
 				},
 				backward : function(speed){
+					var oldX = camera.position.x, oldZ = camera.position.z;
 					controls.moveForward(-1 * speed);
 					this.updatePosition();
+					if(sneaking && canJump && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
 				},
 				right : function(speed){
+					var oldX = camera.position.x, oldZ = camera.position.z;
 					controls.moveRight(speed);
 					this.updatePosition();
+					if(sneaking && canJump && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
 				},
 				left : function(speed){
+					var oldX = camera.position.x, oldZ = camera.position.z;
 					controls.moveRight(-1 * speed);
 					this.updatePosition();
+					if(sneaking && canJump && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
 				},
 				updatePosition : function(){
 					this.x = camera.position.x;
@@ -1286,6 +1312,27 @@
 					this.z = camera.position.z;
 				}
 			};
+
+			// Minecraft-style sneak edge protection: while grounded, reject a move
+			// if any corner of the player's footprint would no longer be supported.
+			function hasSneakSupport(x, z){
+				var feetY = camera.position.y - player.h;
+				var halfW = player.w / 2, halfD = player.d / 2;
+				var corners = [[x-halfW,z-halfD],[x-halfW,z+halfD],[x+halfW,z-halfD],[x+halfW,z+halfD]];
+				for(var c = 0; c < corners.length; c++){
+					var supported = false;
+					for(var ci = 0; ci < chunks.length && !supported; ci++){
+						for(var bi = 0; bi < chunks[ci].length; bi++){
+							var b = chunks[ci][bi];
+							if(b.blockType === "water") continue;
+							var top = b.y + 2.5;
+							if(Math.abs(top - feetY) <= 1.6 && corners[c][0] >= b.x-2.5 && corners[c][0] <= b.x+2.5 && corners[c][1] >= b.z-2.5 && corners[c][1] <= b.z+2.5){ supported = true; break; }
+						}
+					}
+					if(!supported) return false;
+				}
+				return true;
+			}
 
 			function intersect(x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2){
 				var a = {
@@ -1318,14 +1365,14 @@
 
 				if(controls.isLocked || touchModeActive){
 					if(keys.includes(controlOptions.forward)){
-						player.forward(movingSpeed * (sprint ? sprintSpeedInc : 1));
+						player.forward(movingSpeed * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1)));
 						forback = 1 * movingSpeed;
 						for(var i = 0; i < chunks.length; i++){
 							for(var j = 0; j < chunks[i].length; j++){
 								var b = chunks[i][j];
 								var c = intersect(b.x, b.y, b.z, 5, 5, 5, player.x, player.y, player.z, player.w, player.h, player.d);
 								if(c && (b.y - 2.5 < player.y + (player.h / 2) && b.y + 2.5 > player.y - (player.h / 2)) && b.blockType != "water"){
-									player.backward((movingSpeed * (sprint ? sprintSpeedInc : 1)));
+									player.backward((movingSpeed * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1))));
 									forback = 0;
 									rightleft = 0;
 									sprint = false;
@@ -1334,14 +1381,14 @@
 						}
 					}
 					if(keys.includes(controlOptions.backward)){
-						player.backward(movingSpeed * (sprint ? sprintSpeedInc : 1));
+						player.backward(movingSpeed * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1)));
 						forback = -1 * movingSpeed;
 						for(var i = 0; i < chunks.length; i++){
 							for(var j = 0; j < chunks[i].length; j++){
 								var b = chunks[i][j];
 								var c = intersect(b.x, b.y, b.z, 5, 5, 5, player.x, player.y, player.z, player.w, player.h, player.d);
 								if(c && (b.y - 2.5 < player.y + (player.h / 2) && b.y + 2.5 > player.y - (player.h / 2)) && b.blockType != "water"){
-									player.forward(movingSpeed * (sprint ? sprintSpeedInc : 1));
+									player.forward(movingSpeed * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1)));
 									forback = 0;
 									rightleft = 0;
 									sprint = false;
@@ -1350,14 +1397,14 @@
 						}
 					}
 					if(keys.includes(controlOptions.right)){
-						player.right(movingSpeed * (sprint ? sprintSpeedInc : 1));
+						player.right(movingSpeed * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1)));
 						rightleft = 1 * movingSpeed;
 						for(var i = 0; i < chunks.length; i++){
 							for(var j = 0; j < chunks[i].length; j++){
 								var b = chunks[i][j];
 								var c = intersect(b.x, b.y, b.z, 5, 5, 5, player.x, player.y, player.z, player.w, player.h, player.d);
 								if(c && (b.y - 2.5 < player.y + (player.h / 2) && b.y + 2.5 > player.y - (player.h / 2)) && b.blockType != "water"){
-									player.left(movingSpeed * (sprint ? sprintSpeedInc : 1));
+									player.left(movingSpeed * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1)));
 									forback = 0;
 									rightleft = 0;
 									sprint = false;
@@ -1366,14 +1413,14 @@
 						}
 					}
 					if(keys.includes(controlOptions.left)){
-						player.left(movingSpeed * (sprint ? sprintSpeedInc : 1));
+						player.left(movingSpeed * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1)));
 						rightleft = -1 * movingSpeed;
 						for(var i = 0; i < chunks.length; i++){
 							for(var j = 0; j < chunks[i].length; j++){
 								var b = chunks[i][j];
 								var c = intersect(b.x, b.y, b.z, 5, 5, 5, player.x, player.y, player.z, player.w, player.h, player.d);
 								if(c && (b.y - 2.5 < player.y + (player.h / 2) && b.y + 2.5 > player.y - (player.h / 2)) && b.blockType != "water"){
-									player.right(movingSpeed * (sprint ? sprintSpeedInc : 1));
+									player.right(movingSpeed * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1)));
 									forback = 0;
 									rightleft = 0;
 									sprint = false;
@@ -1403,8 +1450,8 @@
 							break;
 						}
 					}
-					player.forward(forback * (sprint ? sprintSpeedInc : 1));
-					player.right(rightleft * (sprint ? sprintSpeedInc : 1));
+					player.forward(forback * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1)));
+					player.right(rightleft * (sneaking ? 0.3 : (sprint ? sprintSpeedInc : 1)));
 				}
 				
 				camera.position.y = camera.position.y - ySpeed;
