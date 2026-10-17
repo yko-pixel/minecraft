@@ -62,9 +62,9 @@
 		button { touch-action: manipulation; }
 		#touchControls { display: none; position: fixed; inset: 0; z-index: 9000; pointer-events: none; font-family: Arial, sans-serif; }
 		.touchCluster { position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); display: grid; gap: 8px; pointer-events: auto; }
-		#movePad { left: max(18px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); width: 154px; height: 154px; display: block; }
-		#moveStickBase { position:absolute; inset:0; border:2px solid rgba(255,255,255,.78); border-radius:50%; background:rgba(20,20,20,.36); pointer-events:auto; touch-action:none; }
-		#moveStickKnob { position:absolute; left:50%; top:50%; width:62px; height:62px; margin:-31px 0 0 -31px; border:2px solid rgba(255,255,255,.9); border-radius:50%; background:rgba(255,255,255,.45); pointer-events:none; }
+		#movePad { position: absolute; left: max(18px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); width: clamp(104px, 12vw, 132px); height: clamp(104px, 12vw, 132px); display: block; pointer-events: none; }
+		#moveStickBase { position:absolute; inset:0; border:2px solid rgba(255,255,255,.68); border-radius:50%; background:rgba(20,20,20,.24); pointer-events:auto; touch-action:none; }
+		#moveStickKnob { position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; border:2px solid rgba(255,255,255,.9); border-radius:50%; background:rgba(255,255,255,.42); pointer-events:none; }
 		#actionPad { right: max(18px, env(safe-area-inset-right)); grid-template-columns: 76px; grid-template-rows: repeat(2, 64px); }
 		.touchBtn { border: 1px solid rgba(255,255,255,.8); border-radius: 14px; color: white; background: rgba(20,20,20,.55); font-size: 15px; font-weight: 700; min-width: 64px; min-height: 60px; }
 		.touchBtn:active, .touchBtn.active { background: rgba(255,255,255,.4); }
@@ -1018,7 +1018,7 @@
 			}
 			function updateMoveStick(e){
 				var r = moveStickBase.getBoundingClientRect(), cx = r.left+r.width/2, cy = r.top+r.height/2;
-				var dx=e.clientX-cx, dy=e.clientY-cy, max=r.width*0.31, len=Math.sqrt(dx*dx+dy*dy);
+				var dx=e.clientX-cx, dy=e.clientY-cy, max=Math.min(r.width,r.height)*0.30, len=Math.sqrt(dx*dx+dy*dy);
 				if(len>max){ dx=dx/len*max; dy=dy/len*max; }
 				moveStickKnob.style.transform="translate("+dx+"px, "+dy+"px)";
 				moveStickKeys.forEach(removeTouchKey); moveStickKeys=[];
