@@ -195,7 +195,7 @@
 	</div>
 
 
-	<div id="versionBadge" aria-label="ゲームバージョン">v5</div>
+	<div id="versionBadge" aria-label="ゲームバージョン">v6</div>
 
 	<div id = "titleScreenGUI">
 		<img src = "titleScreen/one.jpeg" class = "titleScreen">
@@ -1330,11 +1330,11 @@
 				}
 			};
 
-			// Minecraft-style sneak edge protection: while grounded, reject a move
-			// if any corner of the player's footprint would no longer be supported.
+			// Minecraft-style sneak edge protection: while grounded, allow a deliberate overhang.
+			// The expanded support footprint lets the camera/player lean farther over a block edge.
 			function hasSneakSupport(x, z){
 				var feetY = camera.position.y - player.h;
-				var halfW = player.w * 0.28, halfD = player.d * 0.28;
+				var halfW = player.w * 0.72, halfD = player.d * 0.72;
 				var corners = [[x-halfW,z-halfD],[x-halfW,z+halfD],[x+halfW,z-halfD],[x+halfW,z+halfD]];
 				var supportedCorners = 0;
 				for(var c = 0; c < corners.length; c++){
@@ -1349,8 +1349,8 @@
 					}
 					if(supported) supportedCorners++;
 				}
-				// Let the player lean over an edge far enough to see the block's side,
-				// but stop before the whole footprint loses support.
+				// Allow a larger overhang for bridge-building, stopping while at least one
+				// outer support corner still overlaps a solid block.
 				return supportedCorners > 0;
 			}
 
