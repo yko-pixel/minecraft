@@ -195,7 +195,7 @@
 	</div>
 
 
-	<div id="versionBadge" aria-label="ゲームバージョン">v9</div>
+	<div id="versionBadge" aria-label="ゲームバージョン">v10</div>
 
 	<div id = "titleScreenGUI">
 		<img src = "titleScreen/one.jpeg" class = "titleScreen">
@@ -1156,8 +1156,13 @@
 				var x=Math.round((p.x+n.x*2.5)/5)*5, y=Math.round((p.y+n.y*2.5)/5)*5, z=Math.round((p.z+n.z*2.5)/5)*5;
 				if(y<=minWorldY) return;
 				for(var c=0;c<chunks.length;c++) for(var j=0;j<chunks[c].length;j++){var b=chunks[c][j];if(b.x===x&&b.y===y&&b.z===z)return;}
-				// Never place a block inside the player body. Blocks below the feet remain valid for bridge-building.
-				if(intersect(x,y,z,5,5,5,player.x,player.y,player.z,player.w,player.h,player.d)) return;
+				// Reject blocks that overlap the player's body, but allow a block whose
+				// top is at or below the player's feet (the normal bridge-building target).
+				var playerBottom = player.y - player.h / 2;
+				var candidateTop = y + 2.5;
+				var overlapsBody = intersect(x,y,z,5,5,5,player.x,player.y,player.z,player.w,player.h,player.d);
+				var isAtOrBelowFeet = candidateTop <= playerBottom + 0.08;
+				if(overlapsBody && !isAtOrBelowFeet) return;
 				var placed = new Block(x,y,z,true,blockToBePlaced), ci=identifyChunk(x,z);
 				if(ci===undefined || ci===null) return;
 				chunks[ci].push(placed); placedBlocks.push(placed); rebuildBlockMeshes();
@@ -1330,28 +1335,27 @@
 				}
 			};
 
-			// Minecraft-style sneak edge protection: while grounded, allow a deliberate overhang.
-			// The expanded support footprint lets the camera/player lean farther over a block edge.
+			// Sneak edge protection: keep at least two footprint corners supported.
+			// A compact footprint allows the player to lean farther over the edge,
+			// while the two-corner rule prevents walking completely off the block.
 			function hasSneakSupport(x, z){
-				// Match Minecraft's edge protection more closely: test the player's real
-				// footprint against solid block tops, rather than requiring its corners
-				// to remain supported. This allows a controlled overhang without allowing
-				// the entire hitbox to leave the platform.
 				var feetY = camera.position.y - player.h;
-				var halfW = player.w / 2, halfD = player.d / 2;
-				var safetyMargin = 0.025;
-				for(var ci = 0; ci < chunks.length; ci++){
-					for(var bi = 0; bi < chunks[ci].length; bi++){
-						var b = chunks[ci][bi];
-						if(b.blockType === "water") continue;
-						var top = b.y + 2.5;
-						if(Math.abs(top - feetY) > 1.6) continue;
-						var overlapX = Math.min(x + halfW, b.x + 2.5) - Math.max(x - halfW, b.x - 2.5);
-						var overlapZ = Math.min(z + halfD, b.z + 2.5) - Math.max(z - halfD, b.z - 2.5);
-						if(overlapX > safetyMargin && overlapZ > safetyMargin) return true;
+				var halfW = player.w * 0.28, halfD = player.d * 0.28;
+				var corners = [[x-halfW,z-halfD],[x-halfW,z+halfD],[x+halfW,z-halfD],[x+halfW,z+halfD]];
+				var supportedCorners = 0;
+				for(var c = 0; c < corners.length; c++){
+					var supported = false;
+					for(var ci = 0; ci < chunks.length && !supported; ci++){
+						for(var bi = 0; bi < chunks[ci].length; bi++){
+							var b = chunks[ci][bi];
+							if(b.blockType === "water") continue;
+							var top = b.y + 2.5;
+							if(Math.abs(top - feetY) <= 1.6 && corners[c][0] >= b.x-2.5 && corners[c][0] <= b.x+2.5 && corners[c][1] >= b.z-2.5 && corners[c][1] <= b.z+2.5){ supported = true; break; }
+						}
 					}
+					if(supported) supportedCorners++;
 				}
-				return false;
+				return supportedCorners >= 2;
 			}
 
 			function intersect(x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2){
