@@ -195,7 +195,7 @@
 	</div>
 
 
-	<div id="versionBadge" aria-label="ゲームバージョン">v10</div>
+	<div id="versionBadge" aria-label="ゲームバージョン">v11</div>
 
 	<div id = "titleScreenGUI">
 		<img src = "titleScreen/one.jpeg" class = "titleScreen">
@@ -1335,12 +1335,11 @@
 				}
 			};
 
-			// Sneak edge protection: keep at least two footprint corners supported.
-			// A compact footprint allows the player to lean farther over the edge,
-			// while the two-corner rule prevents walking completely off the block.
+			// Sneak edge protection: use a larger footprint than v10 so the player can lean farther over the edge.
+			// Keep the two-corner support requirement to avoid allowing a fully unsupported step.
 			function hasSneakSupport(x, z){
 				var feetY = camera.position.y - player.h;
-				var halfW = player.w * 0.28, halfD = player.d * 0.28;
+				var halfW = player.w * 0.58, halfD = player.d * 0.58;
 				var corners = [[x-halfW,z-halfD],[x-halfW,z+halfD],[x+halfW,z-halfD],[x+halfW,z+halfD]];
 				var supportedCorners = 0;
 				for(var c = 0; c < corners.length; c++){
