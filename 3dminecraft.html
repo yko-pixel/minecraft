@@ -69,6 +69,7 @@
 		.touchBtn { border: 1px solid rgba(255,255,255,.8); border-radius: 14px; color: white; background: rgba(20,20,20,.55); font-size: 15px; font-weight: 700; min-width: 64px; min-height: 60px; }
 		.touchBtn:active, .touchBtn.active { background: rgba(255,255,255,.4); }
 		#lookHint { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,.55); padding: 7px 10px; border-radius: 8px; font: 12px Arial,sans-serif; white-space: nowrap; pointer-events:none; }
+		#versionBadge { position: fixed; z-index: 15000; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); padding: 6px 10px; border-radius: 8px; color: #fff; background: rgba(0,0,0,.62); border: 1px solid rgba(255,255,255,.55); font: bold 13px/1.2 Arial,sans-serif; pointer-events: none; }
 		#runtimeErrorPanel { display:none; position:fixed; z-index:20000; left:10px; right:10px; top:10px; max-height:35vh; overflow:auto; padding:12px; color:#fff; background:rgba(110,0,0,.94); border:1px solid #ffb0b0; border-radius:8px; font:13px/1.4 monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
 		@media (pointer: coarse), (max-width: 900px) {
 			.startingButtons, .escapeButtons { width: min(72%, 320px); height: 48px; left: 50%; transform: translateX(-50%); font-size: 15px; }
@@ -194,6 +195,8 @@
 	</div>
 
 
+	<div id="versionBadge" aria-label="ゲームバージョン">v3</div>
+
 	<div id = "titleScreenGUI">
 		<img src = "titleScreen/one.jpeg" class = "titleScreen">
 		<img src = "titleScreen/two.jpeg" class = "titleScreen">
@@ -246,6 +249,18 @@
 			window.addEventListener("unhandledrejection", function(event){
 				showRuntimeError("Promise rejection: " + (event.reason && event.reason.stack ? event.reason.stack : event.reason));
 			});
+		})();
+
+		// iOS Safari can still interpret two quick taps as page zoom on some versions.
+		// Prevent only the second rapid touchend; normal control taps and drags remain usable.
+		(function preventDoubleTapZoom(){
+			var lastTouchEnd = 0;
+			document.addEventListener("touchend", function(event){
+				var now = Date.now();
+				if(now - lastTouchEnd <= 320){ event.preventDefault(); }
+				lastTouchEnd = now;
+				}, {passive:false});
+			document.addEventListener("gesturestart", function(event){ event.preventDefault(); }, {passive:false});
 		})();
 
 		var newGameButton = document.getElementById("newgame");
@@ -1052,7 +1067,7 @@
 			var lookPointer = null;
 			renderer.domElement.addEventListener("pointerdown", function(e){
 				if(!touchModeActive || e.target.closest("button") || e.target.closest(".hotbar")) return;
-				lookPointer = {x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,id:e.pointerId,moved:false,timer:window.setTimeout(function(){ if(lookPointer && lookPointer.id===e.pointerId && !lookPointer.moved){ lookPointer.longPressed=true; performTouchBlockAction("break",e.clientX,e.clientY); } },500)};
+				lookPointer = {x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,id:e.pointerId,moved:false,timer:window.setTimeout(function(){ if(lookPointer && lookPointer.id===e.pointerId && !lookPointer.moved){ lookPointer.longPressed=true; performTouchBlockAction("break",e.clientX,e.clientY); } },400)};
 			});
 			renderer.domElement.addEventListener("pointermove", function(e){
 				if(!touchModeActive || !lookPointer || lookPointer.id !== e.pointerId) return;
@@ -1319,6 +1334,7 @@
 				var feetY = camera.position.y - player.h;
 				var halfW = player.w / 2, halfD = player.d / 2;
 				var corners = [[x-halfW,z-halfD],[x-halfW,z+halfD],[x+halfW,z-halfD],[x+halfW,z+halfD]];
+				var supportedCorners = 0;
 				for(var c = 0; c < corners.length; c++){
 					var supported = false;
 					for(var ci = 0; ci < chunks.length && !supported; ci++){
@@ -1329,9 +1345,11 @@
 							if(Math.abs(top - feetY) <= 1.6 && corners[c][0] >= b.x-2.5 && corners[c][0] <= b.x+2.5 && corners[c][1] >= b.z-2.5 && corners[c][1] <= b.z+2.5){ supported = true; break; }
 						}
 					}
-					if(!supported) return false;
+					if(supported) supportedCorners++;
 				}
-				return true;
+				// Let the player lean over an edge far enough to see the block's side,
+				// but stop before the whole footprint loses support.
+				return supportedCorners > 0;
 			}
 
 			function intersect(x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2){
