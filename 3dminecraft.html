@@ -195,7 +195,7 @@
 	</div>
 
 
-	<div id="versionBadge" aria-label="ゲームバージョン">v6</div>
+	<div id="versionBadge" aria-label="ゲームバージョン">v7</div>
 
 	<div id = "titleScreenGUI">
 		<img src = "titleScreen/one.jpeg" class = "titleScreen">
@@ -1334,7 +1334,7 @@
 			// The expanded support footprint lets the camera/player lean farther over a block edge.
 			function hasSneakSupport(x, z){
 				var feetY = camera.position.y - player.h;
-				var halfW = player.w * 0.72, halfD = player.d * 0.72;
+				var halfW = player.w * 0.42, halfD = player.d * 0.42;
 				var corners = [[x-halfW,z-halfD],[x-halfW,z+halfD],[x+halfW,z-halfD],[x+halfW,z+halfD]];
 				var supportedCorners = 0;
 				for(var c = 0; c < corners.length; c++){
@@ -1349,9 +1349,9 @@
 					}
 					if(supported) supportedCorners++;
 				}
-				// Allow a larger overhang for bridge-building, stopping while at least one
-				// outer support corner still overlaps a solid block.
-				return supportedCorners > 0;
+				// Use a moderate overhang and require at least two support corners
+				// to remain on solid blocks, reducing accidental falls.
+				return supportedCorners >= 2;
 			}
 
 			function intersect(x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2){
