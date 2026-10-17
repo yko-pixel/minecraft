@@ -51,6 +51,8 @@
 <!DOCTYPE html>
 <html>
 <head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 	<title>3D Minecraft</title>
 	<style type="text/css">
 		* { box-sizing: border-box; }
@@ -60,11 +62,13 @@
 		button { touch-action: manipulation; }
 		#touchControls { display: none; position: fixed; inset: 0; z-index: 9000; pointer-events: none; font-family: Arial, sans-serif; }
 		.touchCluster { position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); display: grid; gap: 8px; pointer-events: auto; }
-		#movePad { left: max(16px, env(safe-area-inset-left)); grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); }
-		#actionPad { right: max(16px, env(safe-area-inset-right)); grid-template-columns: repeat(2, 58px); grid-template-rows: repeat(2, 52px); }
-		.touchBtn { border: 1px solid rgba(255,255,255,.8); border-radius: 12px; color: white; background: rgba(20,20,20,.55); font-size: 14px; font-weight: 700; min-width: 48px; min-height: 48px; }
+		#movePad { left: max(18px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); width: 154px; height: 154px; display: block; }
+		#moveStickBase { position:absolute; inset:0; border:2px solid rgba(255,255,255,.78); border-radius:50%; background:rgba(20,20,20,.36); pointer-events:auto; touch-action:none; }
+		#moveStickKnob { position:absolute; left:50%; top:50%; width:62px; height:62px; margin:-31px 0 0 -31px; border:2px solid rgba(255,255,255,.9); border-radius:50%; background:rgba(255,255,255,.45); pointer-events:none; }
+		#actionPad { right: max(18px, env(safe-area-inset-right)); grid-template-columns: 76px; grid-template-rows: repeat(2, 64px); }
+		.touchBtn { border: 1px solid rgba(255,255,255,.8); border-radius: 14px; color: white; background: rgba(20,20,20,.55); font-size: 15px; font-weight: 700; min-width: 64px; min-height: 60px; }
 		.touchBtn:active, .touchBtn.active { background: rgba(255,255,255,.4); }
-		#lookHint { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,.35); padding: 6px 10px; border-radius: 8px; font: 12px Arial,sans-serif; white-space: nowrap; }
+		#lookHint { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,.55); padding: 7px 10px; border-radius: 8px; font: 12px Arial,sans-serif; white-space: nowrap; pointer-events:none; }
 		#runtimeErrorPanel { display:none; position:fixed; z-index:20000; left:10px; right:10px; top:10px; max-height:35vh; overflow:auto; padding:12px; color:#fff; background:rgba(110,0,0,.94); border:1px solid #ffb0b0; border-radius:8px; font:13px/1.4 monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
 		@media (pointer: coarse), (max-width: 900px) {
 			.startingButtons, .escapeButtons { width: min(72%, 320px); height: 48px; left: 50%; transform: translateX(-50%); font-size: 15px; }
@@ -80,6 +84,7 @@
 			width : 3%;
 		}
 		.hotbar {
+			pointer-events: auto; cursor: pointer; touch-action: manipulation;
 			width : 5%;
 			position : absolute;
 			top : 85%;
@@ -208,18 +213,13 @@
 
 	<div id="runtimeErrorPanel" role="alert" aria-live="assertive"></div>
 	<div id="touchControls" aria-label="Touch controls">
-		<div id="lookHint">画面をドラッグ：視点変更</div>
-		<div id="movePad" class="touchCluster">
-			<button class="touchBtn" data-move="w" style="grid-column:2;grid-row:1">▲</button>
-			<button class="touchBtn" data-move="a" style="grid-column:1;grid-row:2">◀</button>
-			<button class="touchBtn" data-move="s" style="grid-column:2;grid-row:2">▼</button>
-			<button class="touchBtn" data-move="d" style="grid-column:3;grid-row:2">▶</button>
+		<div id="lookHint">左スティック：移動 / 右側をドラッグ：視点 / タップ：破壊 / 長押し：設置</div>
+		<div id="movePad" aria-label="移動スティック">
+			<div id="moveStickBase"><div id="moveStickKnob"></div></div>
 		</div>
 		<div id="actionPad" class="touchCluster">
 			<button class="touchBtn" id="touchJump">ジャンプ</button>
-			<button class="touchBtn" id="touchBreak">破壊</button>
 			<button class="touchBtn" id="touchSprint">ダッシュ</button>
-			<button class="touchBtn" id="touchPlace">設置</button>
 		</div>
 	</div>
 
@@ -819,6 +819,26 @@
 		    		document.getElementsByClassName("hotbar")[i - 1].style.zIndex = "1";
 		    	}
 		    }
+			// Touch/click the visible hotbar slots to select a block (works without a keyboard).
+			function selectHotbarSlot(index){
+				if(index < 1 || index > hotbar.length) return;
+				slot = index;
+				blockToBePlaced = hotbar[slot - 1];
+				for(var j = 1; j <= 9; j++){
+					var el = document.getElementById("slot" + j);
+					el.style.opacity = j === slot ? "1" : "0.8";
+					el.style.border = j === slot ? "3px solid #ffff55" : "1px solid white";
+					el.style.zIndex = j === slot ? "2" : "0";
+				}
+			}
+			for(var hs = 1; hs <= 9; hs++){
+				(function(index){
+					var el = document.getElementById("slot" + index);
+					el.style.cursor = "pointer";
+					el.addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); selectHotbarSlot(index); });
+				})(hs);
+			}
+
 			document.addEventListener("keydown", function(e){
 				if(e.key == "w") {
 			        var elapsed = new Date().getTime();
@@ -987,32 +1007,59 @@
 			}
 			function addTouchKey(key){ if(!keys.includes(key)) keys.push(key); }
 			function removeTouchKey(key){ keys = keys.filter(function(k){ return k !== key; }); }
-			touchControls.querySelectorAll("[data-move]").forEach(function(button){
-				var key = button.getAttribute("data-move");
-				button.addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); button.classList.add("active"); addTouchKey(key); });
-				["pointerup","pointercancel","pointerleave"].forEach(function(name){ button.addEventListener(name, function(e){ e.preventDefault(); button.classList.remove("active"); removeTouchKey(key); }); });
-			});
+			// Virtual analog movement stick: translate drag direction into the existing WASD controls.
+			var moveStickBase = document.getElementById("moveStickBase");
+			var moveStickKnob = document.getElementById("moveStickKnob");
+			var moveStickPointer = null;
+			var moveStickKeys = [];
+			function resetMoveStick(){
+				moveStickPointer = null; moveStickKeys.forEach(removeTouchKey); moveStickKeys = [];
+				moveStickKnob.style.transform = "translate(0px, 0px)";
+			}
+			function updateMoveStick(e){
+				var r = moveStickBase.getBoundingClientRect(), cx = r.left+r.width/2, cy = r.top+r.height/2;
+				var dx=e.clientX-cx, dy=e.clientY-cy, max=r.width*0.31, len=Math.sqrt(dx*dx+dy*dy);
+				if(len>max){ dx=dx/len*max; dy=dy/len*max; }
+				moveStickKnob.style.transform="translate("+dx+"px, "+dy+"px)";
+				moveStickKeys.forEach(removeTouchKey); moveStickKeys=[];
+				if(Math.abs(dx)>max*.22) moveStickKeys.push(dx<0?"a":"d");
+				if(Math.abs(dy)>max*.22) moveStickKeys.push(dy<0?"w":"s");
+				moveStickKeys.forEach(addTouchKey);
+			}
+			moveStickBase.addEventListener("pointerdown",function(e){ e.preventDefault(); e.stopPropagation(); moveStickPointer=e.pointerId; if(moveStickBase.setPointerCapture) moveStickBase.setPointerCapture(e.pointerId); updateMoveStick(e); });
+			moveStickBase.addEventListener("pointermove",function(e){ if(moveStickPointer===e.pointerId){ e.preventDefault(); updateMoveStick(e); } });
+			["pointerup","pointercancel","lostpointercapture"].forEach(function(name){ moveStickBase.addEventListener(name,function(e){ if(moveStickPointer===e.pointerId) resetMoveStick(); }); });
 			document.getElementById("touchJump").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); if(canJump){ ySpeed = -1; canJump = false; } });
 			document.getElementById("touchSprint").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); touchSprintActive = !touchSprintActive; sprint = touchSprintActive; this.classList.toggle("active", touchSprintActive); });
-			document.getElementById("touchBreak").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); performTouchBlockAction("break"); });
-			document.getElementById("touchPlace").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); performTouchBlockAction("place"); });
 			var lookPointer = null;
-			renderer.domElement.addEventListener("pointerdown", function(e){ if(!touchModeActive || e.target.closest("button")) return; lookPointer = {x:e.clientX,y:e.clientY,id:e.pointerId}; });
+			renderer.domElement.addEventListener("pointerdown", function(e){
+				if(!touchModeActive || e.target.closest("button") || e.target.closest(".hotbar")) return;
+				lookPointer = {x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,id:e.pointerId,moved:false,timer:window.setTimeout(function(){ if(lookPointer && lookPointer.id===e.pointerId && !lookPointer.moved){ lookPointer.longPressed=true; performTouchBlockAction("place",e.clientX,e.clientY); } },500)};
+			});
 			renderer.domElement.addEventListener("pointermove", function(e){
 				if(!touchModeActive || !lookPointer || lookPointer.id !== e.pointerId) return;
 				var dx = e.clientX - lookPointer.x, dy = e.clientY - lookPointer.y;
+				if(Math.abs(e.clientX-lookPointer.startX)>8 || Math.abs(e.clientY-lookPointer.startY)>8){ lookPointer.moved=true; window.clearTimeout(lookPointer.timer); }
 				lookPointer.x = e.clientX; lookPointer.y = e.clientY;
 				camera.rotation.order = "YXZ";
 				camera.rotation.y -= dx * 0.004;
 				camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x - dy * 0.004));
 			});
-			["pointerup","pointercancel"].forEach(function(name){ renderer.domElement.addEventListener(name, function(){ lookPointer = null; }); });
-			function performTouchBlockAction(action){
-				// Reuse the existing center-screen raycast action without requesting desktop pointer lock.
-				if(action === "break") touchBreakBlock(); else touchPlaceBlock();
+			renderer.domElement.addEventListener("pointerup", function(e){
+				if(!lookPointer || lookPointer.id !== e.pointerId) return;
+				window.clearTimeout(lookPointer.timer);
+				if(!lookPointer.moved && !lookPointer.longPressed) performTouchBlockAction("break",e.clientX,e.clientY);
+				lookPointer = null;
+			});
+			renderer.domElement.addEventListener("pointercancel", function(){ if(lookPointer) window.clearTimeout(lookPointer.timer); lookPointer = null; });
+			function performTouchBlockAction(action, clientX, clientY){
+				if(action === "break") touchBreakBlock(clientX,clientY); else touchPlaceBlock(clientX,clientY);
 			}
-			function findTouchHit(){
-				var ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(0,0), camera);
+			function findTouchHit(clientX,clientY){
+				var rect = renderer.domElement.getBoundingClientRect();
+				var pointer = new THREE.Vector2(0,0);
+				if(typeof clientX === "number" && typeof clientY === "number"){ pointer.x = ((clientX-rect.left)/rect.width)*2-1; pointer.y = -(((clientY-rect.top)/rect.height)*2-1); }
+				var ray = new THREE.Raycaster(); ray.setFromCamera(pointer, camera);
 				var best = null;
 				for(var i=0;i<blocks.length;i++){
 					if(blocks[i].name === "water") continue;
@@ -1059,8 +1106,8 @@
 					scene.add(blocks[i].mesh);
 				}
 			}
-			function touchBreakBlock(){
-				var result=findTouchHit();
+			function touchBreakBlock(clientX,clientY){
+				var result=findTouchHit(clientX,clientY);
 				if(!result || !result.block || result.chunkIndex<0) return;
 				var b=result.block;
 				brokenBlocks.push(new Block(b.x,b.y,b.z,false,b.blockType));
@@ -1068,8 +1115,8 @@
 				chunks[result.chunkIndex].splice(chunks[result.chunkIndex].indexOf(b),1);
 				rebuildBlockMeshes();
 			}
-			function touchPlaceBlock(){
-				var result=findTouchHit();
+			function touchPlaceBlock(clientX,clientY){
+				var result=findTouchHit(clientX,clientY);
 				if(!result || !result.hit) return;
 				var p=result.hit.point, n=result.hit.face.normal.clone().transformDirection(result.hit.object.matrixWorld);
 				var x=Math.round((p.x+n.x*2.5)/5)*5, y=Math.round((p.y+n.y*2.5)/5)*5, z=Math.round((p.z+n.z*2.5)/5)*5;
