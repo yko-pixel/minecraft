@@ -195,7 +195,7 @@
 	</div>
 
 
-	<div id="versionBadge" aria-label="ゲームバージョン">v7</div>
+	<div id="versionBadge" aria-label="ゲームバージョン">v8</div>
 
 	<div id = "titleScreenGUI">
 		<img src = "titleScreen/one.jpeg" class = "titleScreen">
@@ -1156,8 +1156,8 @@
 				var x=Math.round((p.x+n.x*2.5)/5)*5, y=Math.round((p.y+n.y*2.5)/5)*5, z=Math.round((p.z+n.z*2.5)/5)*5;
 				if(y<=minWorldY) return;
 				for(var c=0;c<chunks.length;c++) for(var j=0;j<chunks[c].length;j++){var b=chunks[c][j];if(b.x===x&&b.y===y&&b.z===z)return;}
-				// Allow bridge placement below the player/over the ledge. Keep the usual body-overlap guard for blocks at body height.
-				if(y >= player.y - 1 && intersect(x,y,z,5,5,5,player.x,player.y,player.z,player.w,player.h,player.d)) return;
+				// Never place a block inside the player body. Blocks below the feet remain valid for bridge-building.
+				if(intersect(x,y,z,5,5,5,player.x,player.y,player.z,player.w,player.h,player.d)) return;
 				var placed = new Block(x,y,z,true,blockToBePlaced), ci=identifyChunk(x,z);
 				if(ci===undefined || ci===null) return;
 				chunks[ci].push(placed); placedBlocks.push(placed); rebuildBlockMeshes();
@@ -1334,7 +1334,7 @@
 			// The expanded support footprint lets the camera/player lean farther over a block edge.
 			function hasSneakSupport(x, z){
 				var feetY = camera.position.y - player.h;
-				var halfW = player.w * 0.42, halfD = player.d * 0.42;
+				var halfW = player.w * 0.66, halfD = player.d * 0.66;
 				var corners = [[x-halfW,z-halfD],[x-halfW,z+halfD],[x+halfW,z-halfD],[x+halfW,z+halfD]];
 				var supportedCorners = 0;
 				for(var c = 0; c < corners.length; c++){
@@ -1349,8 +1349,8 @@
 					}
 					if(supported) supportedCorners++;
 				}
-				// Use a moderate overhang and require at least two support corners
-				// to remain on solid blocks, reducing accidental falls.
+				// Allow a larger overhang, but require at least two footprint corners
+				// to remain supported so sneak-edge movement stays protected.
 				return supportedCorners >= 2;
 			}
 
