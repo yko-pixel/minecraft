@@ -53,8 +53,27 @@
 <head>
 	<title>3D Minecraft</title>
 	<style type="text/css">
-		body {
-			margin : 0;
+		* { box-sizing: border-box; }
+		html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+		body { position: fixed; inset: 0; touch-action: none; overscroll-behavior: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+		canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+		button { touch-action: manipulation; }
+		#touchControls { display: none; position: fixed; inset: 0; z-index: 9000; pointer-events: none; font-family: Arial, sans-serif; }
+		.touchCluster { position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); display: grid; gap: 8px; pointer-events: auto; }
+		#movePad { left: max(16px, env(safe-area-inset-left)); grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); }
+		#actionPad { right: max(16px, env(safe-area-inset-right)); grid-template-columns: repeat(2, 58px); grid-template-rows: repeat(2, 52px); }
+		.touchBtn { border: 1px solid rgba(255,255,255,.8); border-radius: 12px; color: white; background: rgba(20,20,20,.55); font-size: 14px; font-weight: 700; min-width: 48px; min-height: 48px; }
+		.touchBtn:active, .touchBtn.active { background: rgba(255,255,255,.4); }
+		#lookHint { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,.35); padding: 6px 10px; border-radius: 8px; font: 12px Arial,sans-serif; white-space: nowrap; }
+		#runtimeErrorPanel { display:none; position:fixed; z-index:20000; left:10px; right:10px; top:10px; max-height:35vh; overflow:auto; padding:12px; color:#fff; background:rgba(110,0,0,.94); border:1px solid #ffb0b0; border-radius:8px; font:13px/1.4 monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
+		@media (pointer: coarse), (max-width: 900px) {
+			.startingButtons, .escapeButtons { width: min(72%, 320px); height: 48px; left: 50%; transform: translateX(-50%); font-size: 15px; }
+			#startingLogo { width: 84%; left: 8%; top: 10%; }
+			.hotbar { width: 9%; top: auto; bottom: max(12px, env(safe-area-inset-bottom)); }
+			#slot1 { left: 9.5%; } #slot2 { left: 18.5%; } #slot3 { left: 27.5%; }
+			#slot4 { left: 36.5%; } #slot5 { left: 45.5%; } #slot6 { left: 54.5%; }
+			#slot7 { left: 63.5%; } #slot8 { left: 72.5%; } #slot9 { left: 81.5%; }
+			#cursor { width: 18px; height: 18px; }
 		}
 		#cursor {
 			position : absolute;
@@ -187,6 +206,23 @@
 	</div>
 
 
+	<div id="runtimeErrorPanel" role="alert" aria-live="assertive"></div>
+	<div id="touchControls" aria-label="Touch controls">
+		<div id="lookHint">画面をドラッグ：視点変更</div>
+		<div id="movePad" class="touchCluster">
+			<button class="touchBtn" data-move="w" style="grid-column:2;grid-row:1">▲</button>
+			<button class="touchBtn" data-move="a" style="grid-column:1;grid-row:2">◀</button>
+			<button class="touchBtn" data-move="s" style="grid-column:2;grid-row:2">▼</button>
+			<button class="touchBtn" data-move="d" style="grid-column:3;grid-row:2">▶</button>
+		</div>
+		<div id="actionPad" class="touchCluster">
+			<button class="touchBtn" id="touchJump">ジャンプ</button>
+			<button class="touchBtn" id="touchBreak">破壊</button>
+			<button class="touchBtn" id="touchSprint">ダッシュ</button>
+			<button class="touchBtn" id="touchPlace">設置</button>
+		</div>
+	</div>
+
 	<div id = "escapeScreenGUI">
 		<div id = "escapeScreen"></div>
 		<button id = "options2" class = "escapeButtons" style = "top : 30%">Options</button>
@@ -195,7 +231,23 @@
 
  	<script type="text/javascript">
 
- 		var newGameButton = document.getElementById("newgame");
+ 		// Show otherwise-hidden runtime failures on screen, especially on iPad.
+		(function installRuntimeDiagnostics(){
+			var panel = document.getElementById("runtimeErrorPanel");
+			function showRuntimeError(message){
+				panel.style.display = "block";
+				panel.textContent = "ゲーム内エラーが発生しました。\n" + String(message).slice(0, 1800);
+			}
+			window.addEventListener("error", function(event){
+				var where = event.filename ? "\n" + event.filename.split("/").pop() + ":" + event.lineno : "";
+				showRuntimeError((event.message || "Unknown error") + where);
+			});
+			window.addEventListener("unhandledrejection", function(event){
+				showRuntimeError("Promise rejection: " + (event.reason && event.reason.stack ? event.reason.stack : event.reason));
+			});
+		})();
+
+		var newGameButton = document.getElementById("newgame");
  		var loadGameButton = document.getElementById("loadgame");
  		var titleScreenSaveButton = document.getElementById("titlescreensave");
 
@@ -357,7 +409,8 @@
 	 		var scene = new THREE.Scene();
 	 		scene.background = new THREE.Color(0x00ffff);
 	 		scene.fog = new THREE.Fog(0x00ffff, 10, 650);
-			var renderer = new THREE.WebGLRenderer();
+			var renderer = new THREE.WebGLRenderer({ antialias: !("ontouchstart" in window), powerPreference: "high-performance" });
+			renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 			renderer.setSize(window.innerWidth, window.innerHeight);
 			document.body.appendChild(renderer.domElement);
 
@@ -704,10 +757,20 @@
 			}
 
 			for(var i = 0; i < blocks.length; i++){
-				scene.add(blocks[i].mesh)
+				// InstancedMesh defaults to its full capacity; render only populated instances.
+				blocks[i].mesh.count = blocks[i].count;
+				blocks[i].mesh.instanceMatrix.needsUpdate = true;
+				scene.add(blocks[i].mesh);
+			}
+			// New worlds should start looking toward the terrain rather than the horizon.
+			if(newOrLoad === "new"){
+				camera.position.set(renderDistance * chunkSize * 2.5, 50, renderDistance * chunkSize * 2.5 + 65);
+				camera.lookAt(renderDistance * chunkSize * 2.5, 0, renderDistance * chunkSize * 2.5);
 			}
 
 			var keys = [];
+			var touchModeActive = false;
+			var touchSprintActive = false;
 			var canJump = true;
 			var controlOptions = {
 				forward : "w",
@@ -910,15 +973,123 @@
 					}
 				}
 				keys = newArr;
-				if(!keys.includes("w")){
+				if(!keys.includes("w") && !touchSprintActive){
 					sprint = false;
 				}
 			});
 
 			var controls = new THREE.PointerLockControls(camera, document.body);
-			controls.lock();
-			document.body.addEventListener("click", function(){
-				controls.lock();
+			var touchControls = document.getElementById("touchControls");
+			var isCoarsePointer = window.matchMedia("(pointer: coarse)").matches || ("ontouchstart" in window);
+			if(isCoarsePointer){
+				touchModeActive = true;
+				touchControls.style.display = "block";
+			}
+			function addTouchKey(key){ if(!keys.includes(key)) keys.push(key); }
+			function removeTouchKey(key){ keys = keys.filter(function(k){ return k !== key; }); }
+			touchControls.querySelectorAll("[data-move]").forEach(function(button){
+				var key = button.getAttribute("data-move");
+				button.addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); button.classList.add("active"); addTouchKey(key); });
+				["pointerup","pointercancel","pointerleave"].forEach(function(name){ button.addEventListener(name, function(e){ e.preventDefault(); button.classList.remove("active"); removeTouchKey(key); }); });
+			});
+			document.getElementById("touchJump").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); if(canJump){ ySpeed = -1; canJump = false; } });
+			document.getElementById("touchSprint").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); touchSprintActive = !touchSprintActive; sprint = touchSprintActive; this.classList.toggle("active", touchSprintActive); });
+			document.getElementById("touchBreak").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); performTouchBlockAction("break"); });
+			document.getElementById("touchPlace").addEventListener("pointerdown", function(e){ e.preventDefault(); e.stopPropagation(); performTouchBlockAction("place"); });
+			var lookPointer = null;
+			renderer.domElement.addEventListener("pointerdown", function(e){ if(!touchModeActive || e.target.closest("button")) return; lookPointer = {x:e.clientX,y:e.clientY,id:e.pointerId}; });
+			renderer.domElement.addEventListener("pointermove", function(e){
+				if(!touchModeActive || !lookPointer || lookPointer.id !== e.pointerId) return;
+				var dx = e.clientX - lookPointer.x, dy = e.clientY - lookPointer.y;
+				lookPointer.x = e.clientX; lookPointer.y = e.clientY;
+				camera.rotation.order = "YXZ";
+				camera.rotation.y -= dx * 0.004;
+				camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x - dy * 0.004));
+			});
+			["pointerup","pointercancel"].forEach(function(name){ renderer.domElement.addEventListener(name, function(){ lookPointer = null; }); });
+			function performTouchBlockAction(action){
+				// Reuse the existing center-screen raycast action without requesting desktop pointer lock.
+				if(action === "break") touchBreakBlock(); else touchPlaceBlock();
+			}
+			function findTouchHit(){
+				var ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(0,0), camera);
+				var best = null;
+				for(var i=0;i<blocks.length;i++){
+					if(blocks[i].name === "water") continue;
+					var hits = ray.intersectObject(blocks[i].mesh);
+					if(hits.length && hits[0].distance < 40 && (!best || hits[0].distance < best.distance)){
+						best = hits[0]; best.blockType = blocks[i].name;
+					}
+				}
+				if(!best) return null;
+				var point = best.point;
+				// Convert the ray hit to the 5-unit grid used by this game's blocks.
+				var normal = best.face.normal.clone().transformDirection(best.object.matrixWorld);
+				var x = Math.round((point.x - normal.x * 2.5) / 5) * 5;
+				var y = Math.round((point.y - normal.y * 2.5) / 5) * 5;
+				var z = Math.round((point.z - normal.z * 2.5) / 5) * 5;
+				var found = null, foundChunk = -1;
+				for(var c=0;c<chunks.length;c++){
+					for(var j=0;j<chunks[c].length;j++){
+						var b=chunks[c][j];
+						if(b.x===x && b.y===y && b.z===z && b.blockType===best.blockType){ found=b; foundChunk=c; break; }
+					}
+					if(found) break;
+				}
+				return {hit:best, block:found, chunkIndex:foundChunk};
+			}
+			function rebuildBlockMeshes(){
+				for(var i=0;i<blocks.length;i++){
+					scene.remove(blocks[i].mesh);
+					var capacity = Math.max(1, renderDistance * renderDistance * chunkSize * chunkSize * depth + placedBlocks.length + 100);
+					blocks[i].mesh = new THREE.InstancedMesh(blockBox, blocks[i].materialArray, capacity);
+					blocks[i].count = 0;
+				}
+				for(var c=0;c<chunks.length;c++){
+					for(var j=0;j<chunks[c].length;j++){
+						var b=chunks[c][j], bi=blockTypes.indexOf(b.blockType);
+						if(bi<0 || blocks[bi].count>=blocks[bi].mesh.count) continue;
+						var matrix = new THREE.Matrix4().makeTranslation(b.x,b.y,b.z);
+						blocks[bi].mesh.setMatrixAt(blocks[bi].count++, matrix);
+					}
+				}
+				for(var i=0;i<blocks.length;i++){
+					blocks[i].mesh.count = blocks[i].count;
+					blocks[i].mesh.instanceMatrix.needsUpdate = true;
+					scene.add(blocks[i].mesh);
+				}
+			}
+			function touchBreakBlock(){
+				var result=findTouchHit();
+				if(!result || !result.block || result.chunkIndex<0) return;
+				var b=result.block;
+				brokenBlocks.push(new Block(b.x,b.y,b.z,false,b.blockType));
+				if(b.placed) placedBlocks = placedBlocks.filter(function(p){return !(p.x===b.x && p.y===b.y && p.z===b.z);});
+				chunks[result.chunkIndex].splice(chunks[result.chunkIndex].indexOf(b),1);
+				rebuildBlockMeshes();
+			}
+			function touchPlaceBlock(){
+				var result=findTouchHit();
+				if(!result || !result.hit) return;
+				var p=result.hit.point, n=result.hit.face.normal.clone().transformDirection(result.hit.object.matrixWorld);
+				var x=Math.round((p.x+n.x*2.5)/5)*5, y=Math.round((p.y+n.y*2.5)/5)*5, z=Math.round((p.z+n.z*2.5)/5)*5;
+				if(y<=minWorldY) return;
+				for(var c=0;c<chunks.length;c++) for(var j=0;j<chunks[c].length;j++){var b=chunks[c][j];if(b.x===x&&b.y===y&&b.z===z)return;}
+				if(intersect(x,y,z,5,5,5,player.x,player.y,player.z,player.w,player.h,player.d)) return;
+				var placed = new Block(x,y,z,true,blockToBePlaced), ci=identifyChunk(x,z);
+				if(ci===undefined || ci===null) return;
+				chunks[ci].push(placed); placedBlocks.push(placed); rebuildBlockMeshes();
+			}
+			// Pointer Lock is desktop-only. iPad/iPhone use the on-screen touch controls.
+			if(!touchModeActive && document.pointerLockElement !== document.body){
+				try { controls.lock(); } catch (err) { console.warn("Pointer lock unavailable; use touch controls.", err); }
+			}
+			document.body.addEventListener("click", function(event){
+				if(touchModeActive) return;
+				if(!controls.isLocked){
+					try { controls.lock(); } catch (err) { console.warn("Pointer lock unavailable.", err); }
+					return;
+				}
 				// Breaking blocks
 				if(controls.isLocked){
 					// Shooting a ray
@@ -1098,7 +1269,7 @@
 			function update(){	
 				player.updatePosition();
 
-				if(controls.isLocked){
+				if(controls.isLocked || touchModeActive){
 					if(keys.includes(controlOptions.forward)){
 						player.forward(movingSpeed * (sprint ? sprintSpeedInc : 1));
 						forback = 1 * movingSpeed;
@@ -1900,16 +2071,21 @@
 			}
 
 			// Resize Window
-			window.addEventListener("resize", function(){
+			function resizeGameViewport(){
+				renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 				renderer.setSize(window.innerWidth, window.innerHeight);
-				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
 				camera.updateProjectionMatrix();
 				cursor.style.left = ((0.5 * window.innerWidth) - (0.5 * cursor.width)).toString() + "px";
 	 			cursor.style.top = ((0.5 * window.innerHeight) - (0.5 * cursor.height)).toString() + "px";
 	 			for(var i = 0; i < document.getElementsByClassName("hotbar").length; i++){
 		 			document.getElementsByClassName("hotbar")[i].style.height = (0.05 * window.innerWidth).toString();
 		 		}
-			});
+			}
+			window.addEventListener("resize", resizeGameViewport);
+			if(window.visualViewport){
+				window.visualViewport.addEventListener("resize", resizeGameViewport);
+			}
 
 			const raycaster = new THREE.Raycaster();
 			const pointer = new THREE.Vector2();
