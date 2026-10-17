@@ -195,7 +195,7 @@
 	</div>
 
 
-	<div id="versionBadge" aria-label="ゲームバージョン">v11</div>
+	<div id="versionBadge" aria-label="ゲームバージョン">v12</div>
 
 	<div id = "titleScreenGUI">
 		<img src = "titleScreen/one.jpeg" class = "titleScreen">
@@ -1308,25 +1308,25 @@
 					var oldX = camera.position.x, oldZ = camera.position.z;
 					controls.moveForward(speed);
 					this.updatePosition();
-					if(sneaking && canJump && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
+					if(sneaking && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
 				},
 				backward : function(speed){
 					var oldX = camera.position.x, oldZ = camera.position.z;
 					controls.moveForward(-1 * speed);
 					this.updatePosition();
-					if(sneaking && canJump && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
+					if(sneaking && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
 				},
 				right : function(speed){
 					var oldX = camera.position.x, oldZ = camera.position.z;
 					controls.moveRight(speed);
 					this.updatePosition();
-					if(sneaking && canJump && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
+					if(sneaking && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
 				},
 				left : function(speed){
 					var oldX = camera.position.x, oldZ = camera.position.z;
 					controls.moveRight(-1 * speed);
 					this.updatePosition();
-					if(sneaking && canJump && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
+					if(sneaking && !hasSneakSupport(this.x, this.z)){ camera.position.x = oldX; camera.position.z = oldZ; this.updatePosition(); }
 				},
 				updatePosition : function(){
 					this.x = camera.position.x;
@@ -1335,11 +1335,11 @@
 				}
 			};
 
-			// Sneak edge protection: use a larger footprint than v10 so the player can lean farther over the edge.
-			// Keep the two-corner support requirement to avoid allowing a fully unsupported step.
+			// Sneak edge protection: conservative footprint. The support test is applied even if the legacy canJump flag briefly flickers false.
+			// Require two supported corners; do not weaken this threshold just to improve the camera view.
 			function hasSneakSupport(x, z){
 				var feetY = camera.position.y - player.h;
-				var halfW = player.w * 0.58, halfD = player.d * 0.58;
+				var halfW = player.w * 0.46, halfD = player.d * 0.46;
 				var corners = [[x-halfW,z-halfD],[x-halfW,z+halfD],[x+halfW,z-halfD],[x+halfW,z+halfD]];
 				var supportedCorners = 0;
 				for(var c = 0; c < corners.length; c++){
