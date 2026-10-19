@@ -195,7 +195,7 @@
 	</div>
 
 
-	<div id="versionBadge" aria-label="ゲームバージョン">v12</div>
+	<div id="versionBadge" aria-label="ゲームバージョン">v13</div>
 
 	<div id = "titleScreenGUI">
 		<img src = "titleScreen/one.jpeg" class = "titleScreen">
@@ -1335,11 +1335,15 @@
 				}
 			};
 
-			// Sneak edge protection: conservative footprint. The support test is applied even if the legacy canJump flag briefly flickers false.
-			// Require two supported corners; do not weaken this threshold just to improve the camera view.
+			// Sneak edge guard adapted from the working BlockWorld v4.1 reference.
+			// This game uses 5-unit blocks, while the reference uses 1-unit blocks; scale
+			// the reference footprint by the same factor instead of using a tiny unscaled footprint.
+			// Keep the reference rule: at least two of four footprint corners must be supported.
 			function hasSneakSupport(x, z){
 				var feetY = camera.position.y - player.h;
-				var halfW = player.w * 0.46, halfD = player.d * 0.46;
+				var blockScale = 5;
+				var halfW = player.w * 0.46 * blockScale;
+				var halfD = player.d * 0.46 * blockScale;
 				var corners = [[x-halfW,z-halfD],[x-halfW,z+halfD],[x+halfW,z-halfD],[x+halfW,z+halfD]];
 				var supportedCorners = 0;
 				for(var c = 0; c < corners.length; c++){
